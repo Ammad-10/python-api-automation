@@ -1,0 +1,17 @@
+.env
+api
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+credentials/*.json
+!credentials/.gitkeep
+inlaid-rig-495921-h3-211f52857084.json
+*.service-account.json
+
+*.log
+.DS_Store
