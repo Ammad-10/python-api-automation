@@ -26,3 +26,15 @@ def send_alerts(alerts: Sequence[dict]) -> None:
         timeout=20,
     )
     response.raise_for_status()
+
+
+def send_test_message() -> None:
+    if not settings.slack_webhook_url:
+        raise RuntimeError("SLACK_WEBHOOK_URL is missing in .env")
+
+    response = requests.post(
+        settings.slack_webhook_url,
+        json={"text": "Crypto pipeline test message: Slack webhook is working."},
+        timeout=20,
+    )
+    response.raise_for_status()

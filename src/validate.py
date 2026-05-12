@@ -5,13 +5,21 @@ from pathlib import Path
 from src.config import settings
 
 
-def validate_setup(require_database: bool = True, require_sheets: bool = False) -> list[str]:
+def format_setup_issues(issues: list[str]) -> str:
+    return "Setup issues:\n" + "\n".join(f"- {issue}" for issue in issues)
+
+
+def validate_setup(
+    require_database: bool = True,
+    require_sheets: bool = False,
+    require_slack: bool = True,
+) -> list[str]:
     issues: list[str] = []
 
     if not settings.news_api_key:
         issues.append("NEWS_API_KEY is missing in .env")
 
-    if not settings.slack_webhook_url:
+    if require_slack and not settings.slack_webhook_url:
         issues.append("SLACK_WEBHOOK_URL is missing in .env")
 
     credentials_path = Path(settings.google_sheets_credentials_file)

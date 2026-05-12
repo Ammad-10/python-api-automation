@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 import gspread
-from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
+from gspread.exceptions import SpreadsheetNotFound, WorksheetNotFound
 
 from src.config import settings
 
@@ -28,51 +28,28 @@ def _sheet_key(value: str) -> str:
 
 
 def _open_sheet():
+    if not settings.google_sheet_id:
+        raise RuntimeError(
+            "GOOGLE_SHEET_ID is empty. Paste the Sheet ID or full Google Sheets URL "
+            "into .env and share the sheet with the service account email."
+        )
+
     credentials_path = Path(settings.google_sheets_credentials_file)
     if not credentials_path.exists():
-        return None
+        raise RuntimeError(
+            f"Google credentials file not found: {settings.google_sheets_credentials_file}"
+        )
 
     client = gspread.service_account(filename=str(credentials_path))
 
-    if settings.google_sheet_id:
-        try:
-            return client.open_by_key(_sheet_key(settings.google_sheet_id))
-        except SpreadsheetNotFound:
-            pass
-
     try:
-        sheet = client.create(settings.google_sheet_name)
-    except APIError as exc:
+        return client.open_by_key(_sheet_key(settings.google_sheet_id))
+    except SpreadsheetNotFound as exc:
         raise RuntimeError(
-            "Google Sheet could not be opened or created. Put a real Google Sheet "
-            "ID or URL in GOOGLE_SHEET_ID, then share that sheet with the service "
-            "account email from your JSON file."
+            "Google Sheet could not be opened. Put the Sheet ID or full Sheet URL "
+            "in GOOGLE_SHEET_ID, then share that sheet with the service account "
+            "email from your JSON file."
         ) from exc
-
-    if settings.google_share_email:
-        sheet.share(settings.google_share_email, perm_type="user", role="writer")
-
-    _save_env_value("GOOGLE_SHEET_ID", sheet.id)
-    return sheet
-
-
-def _save_env_value(key: str, value: str) -> None:
-    env_path = Path(".env")
-    lines = env_path.read_text().splitlines() if env_path.exists() else []
-    output = []
-    replaced = False
-
-    for line in lines:
-        if line.startswith(f"{key}="):
-            output.append(f"{key}={value}")
-            replaced = True
-        else:
-            output.append(line)
-
-    if not replaced:
-        output.append(f"{key}={value}")
-
-    env_path.write_text("\n".join(output).rstrip() + "\n")
 
 
 def _worksheet_with_headers(sheet, title: str, headers: list[str]):
@@ -90,10 +67,10 @@ def _worksheet_with_headers(sheet, title: str, headers: list[str]):
 
 def append_prices(rows: Sequence[dict]) -> None:
     sheet = _open_sheet()
-    if not sheet or not rows:
+    if not rows:
         return
 
-    worksheet = _worksheet_with_headers(sheet, "Prices", PRICE_HEADERS)
+    worksheet = _worksheet_with_headers(sheet, settings.google_sheet_name, PRICE_HEADERS)
     worksheet.append_rows(
         [
             [

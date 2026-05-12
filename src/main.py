@@ -12,9 +12,9 @@ from src.extract.fear_greed import get_fear_greed_index
 from src.extract.news_api import get_headlines
 from src.load.postgres import insert_fear_greed, insert_news, insert_prices
 from src.load.sheets import append_prices
-from src.notify.slack import send_alerts
+from src.notify.slack import send_alerts, send_test_message
 from src.transform.process import clean_fear_greed, clean_news, clean_prices
-from src.validate import validate_setup
+from src.validate import format_setup_issues, validate_setup
 
 
 def run_pipeline(
@@ -23,6 +23,14 @@ def run_pipeline(
     skip_sheets: bool = False,
     skip_slack: bool = False,
 ) -> None:
+    issues = validate_setup(
+        require_database=not dry_run and not skip_db,
+        require_sheets=not dry_run and not skip_sheets,
+        require_slack=not dry_run and not skip_slack,
+    )
+    if issues:
+        raise RuntimeError(format_setup_issues(issues))
+
     print("Starting pipeline run...")
 
     raw_prices = get_prices()
@@ -98,17 +106,30 @@ if __name__ == "__main__":
         action="store_true",
         help="Validate local configuration and exit.",
     )
+    parser.add_argument(
+        "--test-slack",
+        action="store_true",
+        help="Send a Slack test message and exit.",
+    )
     args = parser.parse_args()
+
+    if args.test_slack:
+        try:
+            send_test_message()
+        except (RuntimeError, requests.RequestException) as exc:
+            print(f"Slack test failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        print("Slack test message sent.")
+        raise SystemExit(0)
 
     if args.check:
         issues = validate_setup(
             require_database=not args.dry_run and not args.skip_db,
             require_sheets=not args.skip_sheets and not args.dry_run,
+            require_slack=not args.dry_run and not args.skip_slack,
         )
         if issues:
-            print("Setup issues:")
-            for issue in issues:
-                print(f"- {issue}")
+            print(format_setup_issues(issues))
             raise SystemExit(1)
         print("Setup looks good.")
         raise SystemExit(0)
