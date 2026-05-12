@@ -17,7 +17,12 @@ from src.transform.process import clean_fear_greed, clean_news, clean_prices
 from src.validate import validate_setup
 
 
-def run_pipeline(dry_run: bool = False, skip_sheets: bool = False, skip_slack: bool = False) -> None:
+def run_pipeline(
+    dry_run: bool = False,
+    skip_db: bool = False,
+    skip_sheets: bool = False,
+    skip_slack: bool = False,
+) -> None:
     print("Starting pipeline run...")
 
     raw_prices = get_prices()
@@ -28,11 +33,12 @@ def run_pipeline(dry_run: bool = False, skip_sheets: bool = False, skip_slack: b
     news = clean_news(raw_news)
     fear_greed = clean_fear_greed(raw_fear_greed)
 
-    if not dry_run:
+    if not dry_run and not skip_db:
         insert_prices(prices)
         insert_news(news)
         insert_fear_greed(fear_greed)
 
+    if not dry_run:
         if not skip_sheets:
             append_prices(prices)
 
@@ -46,10 +52,11 @@ def run_pipeline(dry_run: bool = False, skip_sheets: bool = False, skip_slack: b
     )
 
 
-def run_scheduler(skip_sheets: bool = False, skip_slack: bool = False) -> None:
-    run_pipeline(skip_sheets=skip_sheets, skip_slack=skip_slack)
+def run_scheduler(skip_db: bool = False, skip_sheets: bool = False, skip_slack: bool = False) -> None:
+    run_pipeline(skip_db=skip_db, skip_sheets=skip_sheets, skip_slack=skip_slack)
     schedule.every().hour.do(
         run_pipeline,
+        skip_db=skip_db,
         skip_sheets=skip_sheets,
         skip_slack=skip_slack,
     )
@@ -77,6 +84,11 @@ if __name__ == "__main__":
         help="Do not write prices to Google Sheets.",
     )
     parser.add_argument(
+        "--skip-db",
+        action="store_true",
+        help="Do not write records to PostgreSQL.",
+    )
+    parser.add_argument(
         "--skip-slack",
         action="store_true",
         help="Do not send Slack alerts.",
@@ -90,7 +102,7 @@ if __name__ == "__main__":
 
     if args.check:
         issues = validate_setup(
-            require_database=not args.dry_run,
+            require_database=not args.dry_run and not args.skip_db,
             require_sheets=not args.skip_sheets and not args.dry_run,
         )
         if issues:
@@ -105,15 +117,20 @@ if __name__ == "__main__":
         try:
             run_pipeline(
                 dry_run=args.dry_run,
+                skip_db=args.skip_db,
                 skip_sheets=args.skip_sheets,
                 skip_slack=args.skip_slack,
             )
         except (RuntimeError, requests.RequestException) as exc:
-            print(f"API request failed: {exc}", file=sys.stderr)
+            print(f"Pipeline failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
     else:
         try:
-            run_scheduler(skip_sheets=args.skip_sheets, skip_slack=args.skip_slack)
+            run_scheduler(
+                skip_db=args.skip_db,
+                skip_sheets=args.skip_sheets,
+                skip_slack=args.skip_slack,
+            )
         except (RuntimeError, requests.RequestException) as exc:
-            print(f"API request failed: {exc}", file=sys.stderr)
+            print(f"Pipeline failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc

@@ -19,6 +19,11 @@ class Settings:
         "credentials/service-account.json",
     )
     google_sheet_id: str | None = os.getenv("GOOGLE_SHEET_ID") or None
+    google_sheet_name: str = os.getenv(
+        "GOOGLE_SHEET_NAME",
+        "Crypto Market Intelligence Pipeline",
+    )
+    google_share_email: str | None = os.getenv("GOOGLE_SHARE_EMAIL") or None
 
     postgres_host: str = os.getenv("POSTGRES_HOST", "localhost")
     postgres_port: str = os.getenv("POSTGRES_PORT", "5432")

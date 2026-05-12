@@ -11,9 +11,6 @@ def validate_setup(require_database: bool = True, require_sheets: bool = False) 
     if not settings.news_api_key:
         issues.append("NEWS_API_KEY is missing in .env")
 
-    if not settings.coincap_api_key:
-        issues.append("COINCAP_API_KEY is missing in .env; CoinCap v2 requires a Bearer token")
-
     if not settings.slack_webhook_url:
         issues.append("SLACK_WEBHOOK_URL is missing in .env")
 
@@ -21,6 +18,11 @@ def validate_setup(require_database: bool = True, require_sheets: bool = False) 
     if require_sheets:
         if not settings.google_sheet_id:
             issues.append("GOOGLE_SHEET_ID is missing in .env")
+        elif "@" in settings.google_sheet_id:
+            issues.append(
+                "GOOGLE_SHEET_ID contains an email address. Use the Sheet ID from "
+                "the Google Sheets URL, not the service account email."
+            )
         if not credentials_path.exists():
             issues.append(
                 f"Google credentials file not found: {settings.google_sheets_credentials_file}"
