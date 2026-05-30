@@ -1,50 +1,79 @@
-# Crypto Market Intelligence Pipeline
+# Crypto + News API Automation
 
-Python ETL pipeline for crypto prices, news headlines, Fear & Greed Index,
-PostgreSQL storage, Google Sheets reporting, and Slack alerts.
+Containerised Python ETL pipeline that pulls **crypto prices (CoinCap)**, **news headlines (NewsAPI)**, and the **Fear & Greed Index**, lands them in PostgreSQL, reports to Google Sheets, and pushes price alerts to Slack — on an hourly schedule.
 
-## Project Structure
+Built to demonstrate a clean, **production-shaped** ETL: typed extractors, idempotent loads, dry-run mode, dockerised infrastructure, and config via `.env`.
 
-```text
-.
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
-├── requirements.txt
-├── credentials/
-│   └── .gitkeep
-├── db/
-│   └── init/
-│       └── 001_create_tables.sql
-└── src/
-    ├── config.py
-    ├── main.py
-    ├── extract/
-    │   ├── coincap.py
-    │   ├── fear_greed.py
-    │   ├── news_api.py
-    ├── transform/
-    │   └── process.py
-    ├── load/
-    │   ├── postgres.py
-    │   └── sheets.py
-    └── notify/
-        └── slack.py
+---
+
+## Why this exists
+
+Most "API automation" examples are one-off scripts. This repo is a small but complete pattern you can fork for any multi-source pipeline:
+
+- separate `extract / transform / load / notify` packages
+- dry-run and skip-flags so you can iterate safely without writing or paging anyone
+- PostgreSQL bootstrap SQL in `db/init/` so a fresh container starts ready
+- credentials never committed — `credentials/` and `.env` are git-ignored
+
+---
+
+## Architecture
+
+```
+   CoinCap ─┐
+   NewsAPI ─┼─►  extract/   ─►  transform/   ─►  load/postgres   ─►  PostgreSQL
+   F&G Idx ─┘                                     load/sheets    ─►  Google Sheets
+                                                  notify/slack   ─►  Slack alerts
 ```
 
-## Setup
+---
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Language | Python 3 |
+| Storage | PostgreSQL 16 (Docker) |
+| Reporting | Google Sheets API |
+| Alerts | Slack webhooks |
+| Sources | CoinCap, NewsAPI, Alternative.me Fear & Greed |
+| Packaging | Docker Compose |
+
+---
+
+## Quick start
 
 ```bash
+# 1. Python env
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# 2. Config
 cp .env.example .env
+# fill in COINCAP_API_KEY, NEWS_API_KEY, SLACK_WEBHOOK_URL, GOOGLE_SHEET_ID
+
+# 3. Local database
+docker compose up -d
+# PostgreSQL → localhost:5432
+# pgAdmin    → http://localhost:5050
+
+# 4. Run
+python -m src.main --check --skip-sheets   # sanity check
+python -m src.main --once --dry-run        # extract only, no writes
+python -m src.main --once                  # one full cycle
+python -m src.main                         # hourly loop
 ```
 
-Fill in `.env` with your API keys. Keep Google service account JSON files
-inside `credentials/`; they are ignored by Git.
+Useful flags:
 
-Required values before a live run:
+- `--skip-sheets` — skip Google Sheets writes while iterating
+- `--skip-slack` — silence Slack alerts during testing
+- `--dry-run` — extract only, no DB / Sheets / Slack writes
+
+---
+
+## Required environment
 
 ```env
 COINCAP_API_KEY=your_coincap_bearer_token
@@ -53,42 +82,30 @@ SLACK_WEBHOOK_URL=your_slack_webhook
 GOOGLE_SHEET_ID=your_google_sheet_id
 ```
 
-Share the Google Sheet with the service account email from your JSON file.
+Share the Google Sheet with the service-account email from your JSON file in `credentials/`.
 
-## Start Local Database
+---
 
-```bash
-docker compose up -d
+## Repository structure
+
+```
+.
+├── docker-compose.yml
+├── requirements.txt
+├── db/init/001_create_tables.sql     # PostgreSQL bootstrap
+├── credentials/                       # service-account JSON (gitignored)
+└── src/
+    ├── main.py                        # CLI + scheduler
+    ├── config.py
+    ├── extract/                       # CoinCap, NewsAPI, Fear & Greed
+    ├── transform/process.py
+    ├── load/                          # PostgreSQL, Google Sheets
+    └── notify/slack.py
 ```
 
-PostgreSQL runs on `localhost:5432`. pgAdmin runs on
-`http://localhost:5050`.
+---
 
-## Run
+## Author
 
-Check local setup:
-
-```bash
-python -m src.main --check --skip-sheets
-```
-
-Test API extraction without writing anywhere:
-
-```bash
-python -m src.main --once --dry-run
-```
-
-Run once:
-
-```bash
-python -m src.main --once
-```
-
-Run hourly:
-
-```bash
-python -m src.main
-```
-
-Use `--skip-sheets` until `GOOGLE_SHEET_ID` is set. Use `--skip-slack`
-when you want to avoid sending alert messages during testing.
+**Ammad Ajaz** — cloud data & AI engineer
+[github.com/Ammad-10](https://github.com/Ammad-10) · [linkedin.com/in/ammadajaz](https://linkedin.com/in/ammadajaz)
